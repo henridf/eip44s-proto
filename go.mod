@@ -1,4 +1,4 @@
-module github.com/henridf/eip4444
+module github.com/henridf/eip44s-proto
 
 go 1.17
 

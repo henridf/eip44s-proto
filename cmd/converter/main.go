@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/henridf/eip4444/spec"
+	"github.com/henridf/eip44s-proto/spec"
 )
 
 func bail(err error) {

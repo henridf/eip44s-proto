@@ -5,5 +5,5 @@ install:
 
 # need to 'go get github.com/ferranbt/fastssz/sszgen'
 sszgen:
-	rm spec/spec_encoding.go
+	rm -f spec/spec_encoding.go
 	sszgen --path spec
