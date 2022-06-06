@@ -75,15 +75,15 @@ func main() {
 	}
 }
 
-func readRLP(path string) (spec.Blocks, error) {
+func readRLP(path string) (spec.BlockArchive, error) {
 	fh, err := os.Open(path)
 	if err != nil {
-		return spec.Blocks{}, err
+		return spec.BlockArchive{}, err
 	}
 	defer fh.Close()
 
 	stream := rlp.NewStream(fh, 0)
-	var blocks []*spec.ExecutionPayload
+	var blocks []*spec.Block
 	// xxx not checking maxblocks
 	for i := 0; i < spec.MaxBlocks; i++ {
 		_, _, err := stream.Kind()
@@ -91,32 +91,32 @@ func readRLP(path string) (spec.Blocks, error) {
 			break
 		}
 		if err != nil {
-			return spec.Blocks{}, fmt.Errorf("reading kind %d: %v", i, err)
+			return spec.BlockArchive{}, fmt.Errorf("reading kind %d: %v", i, err)
 		}
-		var e spec.ExecutionPayload
+		var e spec.Block
 		err = stream.Decode(&e)
 		if err != nil {
-			return spec.Blocks{}, fmt.Errorf("decoding RLP block %d: %v", i, err)
+			return spec.BlockArchive{}, fmt.Errorf("decoding RLP block %d: %v", i, err)
 		}
 		// xxx not checking spec.MaxBlockSize
 		blocks = append(blocks, &e)
 	}
 
-	return spec.Blocks{
-		Payload: blocks,
+	return spec.BlockArchive{
+		Blocks: blocks,
 	}, nil
 }
 
-func writeRLP(w io.Writer, blocks spec.Blocks) error {
-	for i := 0; i < len(blocks.Payload); i++ {
-		if err := rlp.Encode(w, (*spec.ExecutionPayload)(blocks.Payload[i])); err != nil {
+func writeRLP(w io.Writer, arc spec.BlockArchive) error {
+	for i := 0; i < len(arc.Blocks); i++ {
+		if err := rlp.Encode(w, (*spec.Block)(arc.Blocks[i])); err != nil {
 			return fmt.Errorf("writing RLP-encoded block: %s\n", err)
 		}
 	}
 	return nil
 }
 
-func writeSSZ(w io.Writer, blocks spec.Blocks) error {
+func writeSSZ(w io.Writer, blocks spec.BlockArchive) error {
 	b, err := blocks.MarshalSSZ()
 	if err != nil {
 		return fmt.Errorf("Marshalling: %s\n", err)
@@ -126,8 +126,8 @@ func writeSSZ(w io.Writer, blocks spec.Blocks) error {
 	}
 	return nil
 }
-func readSSZ(path string) (spec.Blocks, error) {
-	blocks := spec.Blocks{}
+func readSSZ(path string) (spec.BlockArchive, error) {
+	blocks := spec.BlockArchive{}
 	fh, err := os.Open(path)
 	if err != nil {
 		return blocks, err

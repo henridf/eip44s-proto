@@ -16,7 +16,7 @@ type extblock struct {
 	Uncles []*types.Header
 }
 
-func fillHdr(eh *ExecutionHeader) *types.Header {
+func fillHdr(eh *Header) *types.Header {
 	hdr := types.Header{
 		ParentHash:  *(*[32]byte)(eh.ParentHash),
 		UncleHash:   *(*[32]byte)(eh.UncleHash),
@@ -34,7 +34,7 @@ func fillHdr(eh *ExecutionHeader) *types.Header {
 		Nonce:       *(*[8]byte)(eh.Nonce),
 	}
 	var difficulty big.Int
-	difficulty.SetBytes(eh.PrevRandao)
+	difficulty.SetBytes(eh.Difficulty)
 	hdr.Difficulty = &difficulty
 
 	var basefee big.Int
@@ -45,7 +45,7 @@ func fillHdr(eh *ExecutionHeader) *types.Header {
 	return &hdr
 }
 
-func (r *ReceiptPayload) EncodeRLP(w io.Writer) error {
+func (r *Receipt) EncodeRLP(w io.Writer) error {
 	buf := rlp.NewEncoderBuffer(w)
 	outerList := buf.List()
 	if len(r.PostState) == 0 {
@@ -70,7 +70,7 @@ func (r *ReceiptPayload) EncodeRLP(w io.Writer) error {
 	return buf.Flush()
 }
 
-func (e *ExecutionPayload) EncodeRLP(w io.Writer) error {
+func (e *Block) EncodeRLP(w io.Writer) error {
 
 	hdr := fillHdr(e.Header)
 	var txs = make([]*types.Transaction, len(e.Transactions))
@@ -97,8 +97,8 @@ func (e *ExecutionPayload) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, e.Receipts)
 }
 
-func fillEHdr(h *types.Header) (*ExecutionHeader, error) {
-	eh := &ExecutionHeader{}
+func fillEHdr(h *types.Header) (*Header, error) {
+	eh := &Header{}
 	eh.ParentHash = h.ParentHash[:]
 	eh.UncleHash = h.UncleHash[:]
 	eh.FeeRecipient = h.Coinbase[:]
@@ -107,8 +107,8 @@ func fillEHdr(h *types.Header) (*ExecutionHeader, error) {
 	eh.ReceiptsRoot = h.ReceiptHash[:]
 	eh.LogsBloom = h.Bloom[:]
 
-	eh.PrevRandao = make([]byte, 32)
-	h.Difficulty.FillBytes(eh.PrevRandao)
+	eh.Difficulty = make([]byte, 32)
+	h.Difficulty.FillBytes(eh.Difficulty)
 
 	eh.BlockNumber = h.Number.Uint64()
 	eh.GasLimit = h.GasLimit
@@ -130,7 +130,7 @@ func fillEHdr(h *types.Header) (*ExecutionHeader, error) {
 	return eh, nil
 }
 
-func (e *ExecutionPayload) DecodeRLP(s *rlp.Stream) error {
+func (e *Block) DecodeRLP(s *rlp.Stream) error {
 	var eb extblock
 	if err := s.Decode(&eb); err != nil {
 		return err
@@ -161,7 +161,7 @@ func (e *ExecutionPayload) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 	for i := 0; i < len(receipts); i++ {
-		p := &ReceiptPayload{}
+		p := &Receipt{}
 		if len(receipts[i].PostState) > 0 {
 			p.PostState = receipts[i].PostState
 		} else {
@@ -169,7 +169,7 @@ func (e *ExecutionPayload) DecodeRLP(s *rlp.Stream) error {
 		}
 		p.CumulativeGasUsed = receipts[i].CumulativeGasUsed
 		for _, rlplog := range receipts[i].Logs {
-			log := &LogPayload{Address: rlplog.Address[:], Data: rlplog.Data}
+			log := &Log{Address: rlplog.Address[:], Data: rlplog.Data}
 			for j := 0; j < len(rlplog.Topics); j++ {
 				topic := rlplog.Topics[j]
 				// xxx ugly conversion from []common.Hash to [][]byte...
