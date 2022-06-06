@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// from core/types/bock.go
+// from core/types/block.go
 type extblock struct {
 	Header *types.Header
 	Txs    []*types.Transaction
@@ -45,6 +45,31 @@ func fillHdr(eh *ExecutionHeader) *types.Header {
 	return &hdr
 }
 
+func (r *ReceiptPayload) EncodeRLP(w io.Writer) error {
+	buf := rlp.NewEncoderBuffer(w)
+	outerList := buf.List()
+	if len(r.PostState) == 0 {
+		if r.Status == types.ReceiptStatusFailed {
+			buf.WriteBytes([]byte{})
+		} else {
+			buf.WriteBytes([]byte{0x01})
+		}
+	} else {
+		buf.WriteBytes(r.PostState)
+	}
+
+	buf.WriteUint64(r.CumulativeGasUsed)
+	logList := buf.List()
+	for _, log := range r.Logs {
+		if err := rlp.Encode(buf, log); err != nil {
+			return err
+		}
+	}
+	buf.ListEnd(logList)
+	buf.ListEnd(outerList)
+	return buf.Flush()
+}
+
 func (e *ExecutionPayload) EncodeRLP(w io.Writer) error {
 
 	hdr := fillHdr(e.Header)
@@ -62,11 +87,14 @@ func (e *ExecutionPayload) EncodeRLP(w io.Writer) error {
 
 	}
 
-	return rlp.Encode(w, extblock{
+	if err := rlp.Encode(w, extblock{
 		Header: hdr,
 		Txs:    txs,
 		Uncles: uncles,
-	})
+	}); err != nil {
+		return err
+	}
+	return rlp.Encode(w, e.Receipts)
 }
 
 func fillEHdr(h *types.Header) (*ExecutionHeader, error) {
@@ -128,5 +156,30 @@ func (e *ExecutionPayload) DecodeRLP(s *rlp.Stream) error {
 		}
 		e.Uncles = append(e.Uncles, eh)
 	}
+	var receipts []*types.ReceiptForStorage
+	if err := s.Decode(&receipts); err != nil {
+		return err
+	}
+	for i := 0; i < len(receipts); i++ {
+		p := &ReceiptPayload{}
+		if len(receipts[i].PostState) > 0 {
+			p.PostState = receipts[i].PostState
+		} else {
+			p.Status = receipts[i].Status
+		}
+		p.CumulativeGasUsed = receipts[i].CumulativeGasUsed
+		for _, rlplog := range receipts[i].Logs {
+			log := &LogPayload{Address: rlplog.Address[:], Data: rlplog.Data}
+			for j := 0; j < len(rlplog.Topics); j++ {
+				topic := rlplog.Topics[j]
+				// xxx ugly conversion from []common.Hash to [][]byte...
+				// maybe just common.Hash directly? (here and elsewhere)
+				log.Topics = append(log.Topics, []byte(topic[:]))
+			}
+			p.Logs = append(p.Logs, log)
+		}
+		e.Receipts = append(e.Receipts, p)
+	}
+
 	return nil
 }

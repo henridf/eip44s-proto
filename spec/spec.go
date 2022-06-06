@@ -34,31 +34,18 @@ type ExecutionPayload struct {
 	Header       *ExecutionHeader   `ssz-max:"604"`
 	Transactions [][]byte           `ssz-max:"1048576,1073741824" ssz-size:"?,?"`
 	Uncles       []*ExecutionHeader `ssz-max:"6040"`
+	Receipts     []*ReceiptPayload  `ssz-max:"4194452"`
 }
 
 type ReceiptPayload struct {
-	ReceiptType       uint8
-	PostState         []byte `ssz-size:"32"`
+	PostState         []byte `ssz-max:"32"`
 	Status            uint64
 	CumulativeGasUsed uint64
-	Bloom             []byte        `ssz-size:"256"`
-	Logs              []*LogPayload `ssz-max:"4194533"`
-	TxHash            []byte        `ssz-size:"32"`
-	ContractAddress   []byte        `ssz-size:"20"`
-	GasUsed           uint64
-	BlockHash         []byte `ssz-size:"32"`
-	BlockNumber       uint64
-	TxIndex           uint32
+	Logs              []*LogPayload `ssz-max:"4194452"` // xxx
 }
 
 type LogPayload struct {
-	address      []byte   `ssz-size:"20"`
-	topics       [][]byte `ssz-max:"4" ssz-size:"?,32"` // 148
-	data         []byte   `ssz-size:"4194304"`          // 4194452
-	block_number uint64   // 4194458
-	tx_hash      []byte   `ssz-size:"32"` // 4194490
-	tx_index     uint32
-	block_hash   []byte `ssz-size:"32"` // 4194526
-	index        uint64 // 4194532
-	removed      bool
+	Address []byte   `ssz-size:"20"`
+	Topics  [][]byte `ssz-max:"4" ssz-size:"?,32"` // 148
+	Data    []byte   `ssz-max:"4194304"`           // 4194452
 }

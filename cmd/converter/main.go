@@ -44,7 +44,7 @@ func main() {
 	} else {
 		fh, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not open output file %s: %s\n", err)
+			fmt.Fprintf(os.Stderr, "could not open output file %s: %s\n", output, err)
 			os.Exit(1)
 		}
 		defer fh.Close()
