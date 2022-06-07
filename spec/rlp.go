@@ -70,7 +70,7 @@ func (r *Receipt) EncodeRLP(w io.Writer) error {
 	return buf.Flush()
 }
 
-func (e *Block) EncodeRLP(w io.Writer) error {
+func blockEncodeRLP(e *Block, w io.Writer, receipts bool) error {
 
 	hdr := fillHdr(e.Header)
 	var txs = make([]*types.Transaction, len(e.Transactions))
@@ -87,14 +87,25 @@ func (e *Block) EncodeRLP(w io.Writer) error {
 
 	}
 
-	if err := rlp.Encode(w, extblock{
+	err := rlp.Encode(w, extblock{
 		Header: hdr,
 		Txs:    txs,
 		Uncles: uncles,
-	}); err != nil {
+	})
+	if !receipts || err != nil {
 		return err
 	}
 	return rlp.Encode(w, e.Receipts)
+}
+
+func (e *Block) EncodeRLP(w io.Writer) error {
+	return blockEncodeRLP(e, w, true)
+}
+
+type BlockNoReceipts Block
+
+func (e *BlockNoReceipts) EncodeRLP(w io.Writer) error {
+	return blockEncodeRLP((*Block)(e), w, false)
 }
 
 func fillEHdr(h *types.Header) (*Header, error) {
@@ -131,6 +142,14 @@ func fillEHdr(h *types.Header) (*Header, error) {
 }
 
 func (e *Block) DecodeRLP(s *rlp.Stream) error {
+	return blockDecodeRLP(e, s, true)
+}
+
+func (e *BlockNoReceipts) DecodeRLP(s *rlp.Stream) error {
+	return blockDecodeRLP((*Block)(e), s, false)
+}
+
+func blockDecodeRLP(e *Block, s *rlp.Stream, withreceipts bool) error {
 	var eb extblock
 	if err := s.Decode(&eb); err != nil {
 		return err
@@ -155,6 +174,9 @@ func (e *Block) DecodeRLP(s *rlp.Stream) error {
 			return err
 		}
 		e.Uncles = append(e.Uncles, eh)
+	}
+	if !withreceipts {
+		return nil
 	}
 	var receipts []*types.ReceiptForStorage
 	if err := s.Decode(&receipts); err != nil {

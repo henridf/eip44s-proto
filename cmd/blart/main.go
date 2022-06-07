@@ -18,19 +18,21 @@ func bail(err error) {
 }
 
 func main() {
-	var encode bool
-	var decode bool
+	var ifmt string
+	var ofmt = "ssz"
 	var output string
 
-	// xxx toSSZ/toRLP ?
-	flag.BoolVar(&encode, "encode", false, "encode input rlp into ssz")
-	flag.BoolVar(&decode, "decode", false, "decode input ssz into rlp")
-	flag.StringVar(&output, "o", "", "write data to output file")
+	flag.StringVar(&ofmt, "o", "ssz", "format for output data [rlp,rlprec,ssz], where rlp is the standard RLP block encoding and rlprc is rlp with interleaved receipts")
+	flag.StringVar(&ifmt, "i", "", "format of input data [rlp,rlprec,ssz]")
+	flag.StringVar(&output, "f", "", "write data to given output file (default stdout)")
 
 	flag.Parse()
 
-	if decode == encode {
-		bail(fmt.Errorf("must select either -encode or -decode"))
+	if ifmt == "" {
+		bail(fmt.Errorf("-i must be provided"))
+	}
+	if ifmt == ofmt {
+		bail(fmt.Errorf("must provide different input and output formats"))
 	}
 
 	args := flag.Args()
@@ -50,32 +52,40 @@ func main() {
 		defer fh.Close()
 		w = fh
 	}
-	if encode {
-		blocks, err := readRLP(args[0])
+	var arc spec.BlockArchive
+	if ifmt == "rlp" || ifmt == "rlprc" {
+		var err error
+		arc, err = readRLP(args[0], ifmt == "rlprc")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "reading RLP: %s\n", err)
 			os.Exit(1)
 		}
-		if err := writeSSZ(w, blocks); err != nil {
+	}
+	if ifmt == "ssz" {
+		var err error
+		arc, err = readSSZ(args[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "reading SSZ: %s\n", err)
+			os.Exit(1)
+		}
+	}
+
+	if ofmt == "ssz" {
+		if err := writeSSZ(w, arc); err != nil {
 			fmt.Fprintf(os.Stderr, "writing SSZ: %s\n", err)
 			os.Exit(1)
 		}
 		return
 	}
-	if decode {
-		blocks, err := readSSZ(args[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "reading SSZ: %s\n", err)
-			os.Exit(1)
-		}
-		if err := writeRLP(w, blocks); err != nil {
+	if ofmt == "rlp" || ofmt == "rlprc" {
+		if err := writeRLP(w, arc, ofmt == "rlprc"); err != nil {
 			fmt.Fprintf(os.Stderr, "writing RLP: %s\n", err)
 			os.Exit(1)
 		}
 	}
 }
 
-func readRLP(path string) (spec.BlockArchive, error) {
+func readRLP(path string, receipts bool) (spec.BlockArchive, error) {
 	fh, err := os.Open(path)
 	if err != nil {
 		return spec.BlockArchive{}, err
@@ -93,13 +103,22 @@ func readRLP(path string) (spec.BlockArchive, error) {
 		if err != nil {
 			return spec.BlockArchive{}, fmt.Errorf("reading kind %d: %v", i, err)
 		}
-		var e spec.Block
-		err = stream.Decode(&e)
-		if err != nil {
-			return spec.BlockArchive{}, fmt.Errorf("decoding RLP block %d: %v", i, err)
+
+		var b spec.Block
+		if receipts {
+			err = stream.Decode(&b)
+			if err != nil {
+				return spec.BlockArchive{}, fmt.Errorf("decoding RLP block %d: %v", i, err)
+			}
+		} else {
+			var bn spec.BlockNoReceipts
+			err = stream.Decode(&bn)
+			if err != nil {
+				return spec.BlockArchive{}, fmt.Errorf("decoding RLP block %d: %v", i, err)
+			}
+			b = (spec.Block)(bn)
 		}
-		// xxx not checking spec.MaxBlockSize
-		blocks = append(blocks, &e)
+		blocks = append(blocks, &b)
 	}
 
 	return spec.BlockArchive{
@@ -107,9 +126,15 @@ func readRLP(path string) (spec.BlockArchive, error) {
 	}, nil
 }
 
-func writeRLP(w io.Writer, arc spec.BlockArchive) error {
+func writeRLP(w io.Writer, arc spec.BlockArchive, receipts bool) error {
 	for i := 0; i < len(arc.Blocks); i++ {
-		if err := rlp.Encode(w, (*spec.Block)(arc.Blocks[i])); err != nil {
+		var err error
+		if receipts {
+			err = rlp.Encode(w, arc.Blocks[i])
+		} else {
+			err = rlp.Encode(w, (*spec.BlockNoReceipts)(arc.Blocks[i]))
+		}
+		if err != nil {
 			return fmt.Errorf("writing RLP-encoded block: %s\n", err)
 		}
 	}

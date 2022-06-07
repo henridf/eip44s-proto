@@ -1,4 +1,4 @@
-BUILD_COMMANDS = ./cmd/converter
+BUILD_COMMANDS = ./cmd/blart
 
 install:
 	@go install $(BUILD_COMMANDS)
