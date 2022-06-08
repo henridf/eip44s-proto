@@ -1,9 +1,10 @@
-BUILD_COMMANDS = ./cmd/converter
+BUILD_COMMANDS = ./cmd/blart
 
 install:
 	@go install $(BUILD_COMMANDS)
 
-# need to 'go get github.com/ferranbt/fastssz/sszgen'
+# requires sszgen on path (e.g. 'go install github.com/ferranbt/fastssz/sszgen')
 sszgen:
 	rm -f spec/spec_encoding.go
-	sszgen --path spec
+	~/go/bin/sszgen --path spec -objs Header,Block,ArchiveBody,ArchiveHeader,Receipt,Log
+
