@@ -27,23 +27,25 @@ func main() {
 	var ofmt = "ssz"
 	var output string
 	var hash bool
+	var info bool
 
 	flag.StringVar(&ofmt, "o", "ssz", "format for output data [rlp,rlprec,ssz], where rlp is the standard RLP block encoding and rlprc is rlp with interleaved receipts")
-	flag.StringVar(&ifmt, "i", "", "format of input data [rlp,rlprec,ssz]")
+	flag.StringVar(&ifmt, "i", "ssz", "format of input data [rlp,rlprec,ssz]")
 	flag.StringVar(&output, "f", "", "write data to given output file (default stdout)")
-	flag.BoolVar(&hash, "hash", false, "compute ssz hash of block list")
+	flag.BoolVar(&hash, "hash", false, "compute ssz hash of block list (read only mode, no output is written)")
+	flag.BoolVar(&info, "info", false, "print block number info (read only mode, no output is written)")
 
 	flag.Parse()
 
 	if ifmt == "" {
 		usage(fmt.Errorf("-i must be provided"))
 	}
-	if ifmt == ofmt {
+	if !info && !hash && ifmt == ofmt {
 		usage(fmt.Errorf("must provide different input and output formats"))
 	}
 
-	if hash && ifmt != "ssz" {
-
+	if (hash || info) && ifmt != "ssz" {
+		usage(fmt.Errorf("-hash and -info require input ssz file"))
 	}
 
 	args := flag.Args()
@@ -51,17 +53,6 @@ func main() {
 		usage(fmt.Errorf("must pass a file name with either rlp or ssz-encoded blocks"))
 	}
 
-	var w io.Writer
-	if output == "" {
-		w = os.Stdout
-	} else {
-		fh, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
-		if err != nil {
-			bail(fmt.Errorf("could not open output file %s: %s", output, err))
-		}
-		defer fh.Close()
-		w = fh
-	}
 	var archdr spec.ArchiveHeader
 	var arc spec.ArchiveBody
 	_, _ = arc.HashTreeRoot()
@@ -90,6 +81,11 @@ func main() {
 			bail(err)
 		}
 
+		if info {
+			fmt.Printf("First block: %d, last block: %d\n", archdr.HeadBlockNumber, archdr.HeadBlockNumber+uint64(archdr.BlockCount))
+			os.Exit(0)
+		}
+
 		arc, err = readSSZBlocks(file)
 		if err != nil {
 			bail(err)
@@ -105,14 +101,35 @@ func main() {
 		}
 	}
 
+	if hash {
+		h32, err := arc.HashTreeRoot()
+		if err != nil {
+			bail(fmt.Errorf("computing hash: %s", err))
+		}
+		fmt.Printf("hash_tree_root: %x\n", h32)
+		os.Exit(0)
+	}
+
+	var writer io.Writer
+	if output == "" {
+		writer = os.Stdout
+	} else {
+		fh, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+		if err != nil {
+			bail(fmt.Errorf("could not open output file %s: %s", output, err))
+		}
+		defer fh.Close()
+		writer = fh
+	}
+
 	if ofmt == "ssz" {
-		if err := writeSSZ(w, archdr, arc); err != nil {
+		if err := writeSSZ(writer, archdr, arc); err != nil {
 			bail(fmt.Errorf("writing SSZ: %s", err))
 		}
 		return
 	}
 	if ofmt == "rlp" || ofmt == "rlprc" {
-		if err := writeRLP(w, arc, ofmt == "rlprc"); err != nil {
+		if err := writeRLP(writer, arc, ofmt == "rlprc"); err != nil {
 			bail(fmt.Errorf("writing RLP: %s", err))
 		}
 	}
