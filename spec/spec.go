@@ -4,10 +4,12 @@ package spec
 
 const MaxBlocks = 1000000
 
-type BlockArchive struct {
+type ArchiveHeader struct {
 	HeadBlockNumber uint64
 	BlockCount      uint32
-	Blocks          []*Block `ssz-max:"1000000"`
+}
+type ArchiveBody struct {
+	Blocks []*Block `ssz-max:"1000000"`
 }
 
 type Block struct {

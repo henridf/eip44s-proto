@@ -6,4 +6,5 @@ install:
 # requires sszgen on path (e.g. 'go install github.com/ferranbt/fastssz/sszgen')
 sszgen:
 	rm -f spec/spec_encoding.go
-	~/go/bin/sszgen --path spec -objs Header,Block,BlockArchive,Receipt,Log
+	~/go/bin/sszgen --path spec -objs Header,Block,ArchiveBody,ArchiveHeader,Receipt,Log
+
