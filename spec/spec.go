@@ -5,6 +5,7 @@ package spec
 const MaxBlocks = 1000000
 
 type ArchiveHeader struct {
+	Version         uint64
 	HeadBlockNumber uint64
 	BlockCount      uint32
 }

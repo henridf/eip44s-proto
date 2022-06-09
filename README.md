@@ -32,6 +32,7 @@ An example that takes an input `rlprec`-file, encodes it to ssz, then computes t
 $ blart -i rlprc -f out.ssz blocks-receipts-2000000-2100000.rlp
 
 $ blart -info out.ssz 
+Format version 0
 First block: 2000000, last block: 2100001
 
 $ blart -hash out.ssz 

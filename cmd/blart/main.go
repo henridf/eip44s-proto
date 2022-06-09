@@ -11,6 +11,8 @@ import (
 	"github.com/henridf/eip44s-proto/spec"
 )
 
+const version = 0
+
 func bail(err error) {
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 	os.Exit(1)
@@ -63,6 +65,7 @@ func main() {
 			bail(fmt.Errorf("reading RLP: %s", err))
 		}
 		archdr = spec.ArchiveHeader{
+			Version:         version,
 			HeadBlockNumber: arc.Blocks[0].Header.BlockNumber,
 			BlockCount:      uint32(len(arc.Blocks)),
 		}
@@ -82,6 +85,7 @@ func main() {
 		}
 
 		if info {
+			fmt.Printf("Format version %d\n", archdr.Version)
 			fmt.Printf("First block: %d, last block: %d\n", archdr.HeadBlockNumber, archdr.HeadBlockNumber+uint64(archdr.BlockCount))
 			os.Exit(0)
 		}
