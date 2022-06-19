@@ -1,4 +1,4 @@
-BUILD_COMMANDS = ./cmd/blart
+BUILD_COMMANDS = ./cmd/bart
 
 install:
 	@go install $(BUILD_COMMANDS)
