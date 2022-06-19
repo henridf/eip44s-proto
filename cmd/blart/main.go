@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/henridf/eip44s-proto/spec"
+	"github.com/rs/zerolog"
 )
 
 const version = 0
@@ -43,6 +45,17 @@ func numberedFileName(basename string, n int) string {
 	name := strings.TrimSuffix(basename, suffix)
 	name = name + fmt.Sprintf("-%d", n) + suffix
 	return name
+}
+
+func logger() zerolog.Logger {
+	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	output.FormatLevel = func(i interface{}) string {
+		return strings.ToUpper(fmt.Sprintf("| %-6s|", i))
+	}
+	output.FormatFieldName = func(i interface{}) string {
+		return fmt.Sprintf("%s:", i)
+	}
+	return zerolog.New(output).With().Timestamp().Logger()
 }
 
 func main() {
@@ -84,12 +97,14 @@ func main() {
 		usage(fmt.Errorf("must pass a file name with either rlp or ssz-encoded blocks"))
 	}
 
+	log := logger()
+
 	if ifmt == "rlp" || ifmt == "rlprc" {
 		mr, err := multiReader(args)
 		if err != nil {
 			bail(err)
 		}
-		reader := newChunkedRLPReader(mr, ifmt == "rlprc", targetSize)
+		reader := newChunkedRLPReader(mr, ifmt == "rlprc", targetSize, log)
 
 		done := false
 		exp := uint64(0)
@@ -146,7 +161,7 @@ func main() {
 			bail(fmt.Errorf("opening file: %s", err))
 		}
 
-		fmt.Printf("reading SSZ archive %s\n", fn)
+		log.Info().Str("name", fn).Msg("Reading SSZ archive file")
 		archdr, err := readSSZHeader(file)
 		if err != nil {
 			bail(err)
@@ -170,7 +185,7 @@ func main() {
 			os.Exit(0)
 		}
 	}
-	fmt.Printf("writing to %s\n", output)
+	log.Info().Str("name", output).Msg("Writing RLP file")
 	if err := writeRLP(ofmt, output, arcs...); err != nil {
 		bail(fmt.Errorf("writing RLP: %s", err))
 	}
@@ -273,9 +288,10 @@ type chunkedRLPReader struct {
 	receipts   bool
 	targetSize int
 	cr         *countingReader
+	log        zerolog.Logger
 }
 
-func newChunkedRLPReader(r io.Reader, receipts bool, targetSize int) *chunkedRLPReader {
+func newChunkedRLPReader(r io.Reader, receipts bool, targetSize int, log zerolog.Logger) *chunkedRLPReader {
 	cr := &countingReader{r: r}
 	stream := rlp.NewStream(cr, 0)
 	return &chunkedRLPReader{
@@ -283,6 +299,7 @@ func newChunkedRLPReader(r io.Reader, receipts bool, targetSize int) *chunkedRLP
 		receipts,
 		targetSize,
 		cr,
+		log,
 	}
 }
 
@@ -293,11 +310,11 @@ func (c *chunkedRLPReader) readOneArchive() (spec.ArchiveBody, error) {
 	for i := 0; true; i++ {
 		_, _, err = c.stream.Kind()
 		if err == io.EOF {
-			fmt.Printf("Read one archive (reached end at %d bytes)\n", c.cr.n)
+			c.log.Info().Int("size (bytes)", c.cr.n).Msg("Read final archive")
 			break
 		}
 		if c.targetSize > 0 && c.cr.n >= c.targetSize {
-			fmt.Printf("Read one archive (reached %d bytes, >= targetSize %d)\n", c.cr.n, c.targetSize)
+			c.log.Info().Int("size (bytes)", c.cr.n).Msg("Read one archive")
 			break
 		}
 		if err != nil {
