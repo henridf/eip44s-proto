@@ -108,39 +108,6 @@ func (e *BlockNoReceipts) EncodeRLP(w io.Writer) error {
 	return blockEncodeRLP((*Block)(e), w, false)
 }
 
-func fillEHdr(h *types.Header) (*Header, error) {
-	eh := &Header{}
-	eh.ParentHash = h.ParentHash[:]
-	eh.UncleHash = h.UncleHash[:]
-	eh.FeeRecipient = h.Coinbase[:]
-	eh.StateRoot = h.Root[:]
-	eh.TxHash = h.TxHash[:]
-	eh.ReceiptsRoot = h.ReceiptHash[:]
-	eh.LogsBloom = h.Bloom[:]
-
-	eh.Difficulty = make([]byte, 32)
-	h.Difficulty.FillBytes(eh.Difficulty)
-
-	eh.BlockNumber = h.Number.Uint64()
-	eh.GasLimit = h.GasLimit
-	eh.GasUsed = h.GasUsed
-	eh.Timestamp = h.Time
-
-	if len(h.Extra) > 32 {
-		return nil, fmt.Errorf("invalid extradata length in block %d: %v", eh.BlockNumber, len(h.Extra))
-	}
-	eh.ExtraData = h.Extra
-
-	eh.BaseFeePerGas = make([]byte, 32)
-	if h.BaseFee != nil {
-		h.BaseFee.FillBytes(eh.BaseFeePerGas)
-	}
-	eh.MixDigest = h.MixDigest[:]
-	eh.Nonce = h.Nonce[:]
-	//	e.BlockHash = make([]byte, 32)
-	return eh, nil
-}
-
 func (e *Block) DecodeRLP(s *rlp.Stream) error {
 	return blockDecodeRLP(e, s, true)
 }
@@ -155,7 +122,7 @@ func blockDecodeRLP(e *Block, s *rlp.Stream, withreceipts bool) error {
 		return err
 	}
 
-	eh, err := fillEHdr(eb.Header)
+	eh, err := FromHeader(eb.Header)
 	if err != nil {
 		return err
 	}
@@ -169,7 +136,7 @@ func blockDecodeRLP(e *Block, s *rlp.Stream, withreceipts bool) error {
 		e.Transactions = append(e.Transactions, b)
 	}
 	for i := 0; i < len(eb.Uncles); i++ {
-		eh, err := fillEHdr(eb.Uncles[i])
+		eh, err := FromHeader(eb.Uncles[i])
 		if err != nil {
 			return err
 		}

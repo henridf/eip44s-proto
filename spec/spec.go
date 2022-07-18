@@ -1,5 +1,11 @@
 package spec
 
+import (
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/core/types"
+)
+
 // go run sszgen/*.go --path ../../work/eip4444/
 
 const MaxBlocks = 1000000
@@ -51,4 +57,90 @@ type Log struct {
 	Address []byte   `ssz-size:"20"`
 	Topics  [][]byte `ssz-max:"4" ssz-size:"?,32"` // 148
 	Data    []byte   `ssz-max:"4194304"`           // 4194452
+}
+
+func FromBlock() *Block {
+	return &Block{}
+}
+
+func FromHeader(h *types.Header) (*Header, error) {
+	sh := &Header{}
+	sh.ParentHash = h.ParentHash[:]
+	sh.UncleHash = h.UncleHash[:]
+	sh.FeeRecipient = h.Coinbase[:]
+	sh.StateRoot = h.Root[:]
+	sh.TxHash = h.TxHash[:]
+	sh.ReceiptsRoot = h.ReceiptHash[:]
+	sh.LogsBloom = h.Bloom[:]
+
+	sh.Difficulty = make([]byte, 32)
+	h.Difficulty.FillBytes(sh.Difficulty)
+
+	sh.BlockNumber = h.Number.Uint64()
+	sh.GasLimit = h.GasLimit
+	sh.GasUsed = h.GasUsed
+	sh.Timestamp = h.Time
+
+	if len(h.Extra) > 32 {
+		return nil, fmt.Errorf("invalid extradata length in block %d: %v", sh.BlockNumber, len(h.Extra))
+	}
+	sh.ExtraData = h.Extra
+
+	sh.BaseFeePerGas = make([]byte, 32)
+	if h.BaseFee != nil {
+		h.BaseFee.FillBytes(sh.BaseFeePerGas)
+	}
+	sh.MixDigest = h.MixDigest[:]
+	sh.Nonce = h.Nonce[:]
+	//	e.BlockHash = make([]byte, 32)
+	return sh, nil
+}
+
+func FillBlock(sb *Block, b types.Block) error {
+	eh, err := FromHeader(b.Header())
+	if err != nil {
+		return err
+	}
+	sb.Header = eh
+
+	txs := b.Transactions()
+	for i := 0; i < len(txs); i++ {
+		b, err := txs[i].MarshalBinary()
+		if err != nil {
+			return err
+		}
+		sb.Transactions = append(sb.Transactions, b)
+	}
+	uncles := b.Uncles()
+	for i := 0; i < len(uncles); i++ {
+		eh, err := FromHeader(uncles[i])
+		if err != nil {
+			return err
+		}
+		sb.Uncles = append(sb.Uncles, eh)
+	}
+	return nil
+}
+
+func FillReceipts(sb *Block, receipts []*types.Receipt) {
+	for i := 0; i < len(receipts); i++ {
+		p := &Receipt{}
+		if len(receipts[i].PostState) > 0 {
+			p.PostState = receipts[i].PostState
+		} else {
+			p.Status = receipts[i].Status
+		}
+		p.CumulativeGasUsed = receipts[i].CumulativeGasUsed
+		for _, rlplog := range receipts[i].Logs {
+			log := &Log{Address: rlplog.Address[:], Data: rlplog.Data}
+			for j := 0; j < len(rlplog.Topics); j++ {
+				topic := rlplog.Topics[j]
+				// xxx ugly conversion from []common.Hash to [][]byte...
+				// maybe just common.Hash directly? (here and elsewhere)
+				log.Topics = append(log.Topics, []byte(topic[:]))
+			}
+			p.Logs = append(p.Logs, log)
+		}
+		sb.Receipts = append(sb.Receipts, p)
+	}
 }
