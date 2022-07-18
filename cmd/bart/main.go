@@ -15,8 +15,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const version = 0
-
 func bail(err error) {
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 	os.Exit(1)
@@ -120,7 +118,7 @@ func main() {
 			}
 			exp = arc.Blocks[0].Header.BlockNumber + uint64(len(arc.Blocks))
 			archdr := spec.ArchiveHeader{
-				Version:         version,
+				Version:         spec.Version,
 				HeadBlockNumber: arc.Blocks[0].Header.BlockNumber,
 				BlockCount:      uint32(len(arc.Blocks)),
 			}

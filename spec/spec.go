@@ -8,7 +8,10 @@ import (
 
 // go run sszgen/*.go --path ../../work/eip4444/
 
-const MaxBlocks = 1000000
+const (
+	Version   = 0
+	MaxBlocks = 1000000
+)
 
 type ArchiveHeader struct {
 	Version         uint64
